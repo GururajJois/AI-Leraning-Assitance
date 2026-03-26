@@ -1,0 +1,3 @@
+rafce
+npm install tailwindcss @tailwindcss/vite
+npm i axios lucide-react moment react-hot-toast react-markdown react-router-dom react-syntax-highlighter remark-gfm
