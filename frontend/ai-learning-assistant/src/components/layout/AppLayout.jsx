@@ -1,6 +1,6 @@
 import React from 'react'
 
-const QuizTakePage = () => {
+const AppLayout = () => {
   return (
     <div>
       
@@ -8,4 +8,4 @@ const QuizTakePage = () => {
   )
 }
 
-export default QuizTakePage
+export default AppLayout
