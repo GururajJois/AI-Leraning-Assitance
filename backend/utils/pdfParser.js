@@ -5,3 +5,17 @@ import { PDFParse } from 'pdf-parse';
  * @param {string} filePath - Path to the PDF file
  * @returns {Promise<{text: string, numPages: number}>} - Extracted text content and page count
  */
+
+export async function extractTextFromPDF(filePath) {
+    try {
+        const dataBuffer = await fs.readFile(filePath);
+        //pdf-parse excepts a Uint8Array,  not a Buffer
+        const parser = await PDFParse(new Uint8Array(dataBuffer));
+        const data = await parser.getText();
+        
+        return { text: data.text, numPages: data.numpages, info: data.info };
+    } catch (error) {
+        console.error('Error extracting text from PDF:', error);
+        throw new Error('Failed to extract text from PDF');
+    }
+};
