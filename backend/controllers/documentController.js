@@ -1,11 +1,12 @@
 import { title } from 'process';
-import Document from '../models/Document';
-import Flashcard from '../models/Flashcard';
-import Quiz from '../models/Quiz';
-import { extractTextFromPDF } from '../utils/pdfParser';
-import { chunkText } from '../utils/textChunker';
+import Document from '../models/Document.js';
+import Flashcard from '../models/Flashcard.js';
+import Quiz from '../models/Quiz.js';
+import { extractTextFromPDF } from '../utils/pdfParser.js';
+import { chunkText } from '../utils/textChunker.js';
 import fs from 'fs/promises';
 import mongoose from 'mongoose';
+
 
 
 //@desc    Upload PDF document
@@ -77,11 +78,82 @@ export const getDocuments = async (req, res, next) => {
     }
 };
 
+// Helper function to process PDF
+const processPDF = async (documentId, filePath) => {
+    try {
+        //Extract text from PDF
+        const {text} = await extractTextFromPDF(filePath);
+        //Chunk text into smaller pieces
+        const chunks = chunkText(text, 500, 50); // Chunk size of 500 characters with 50 characters overlap
+        //Update the document
+        await Document.findByIdAndUpdate(documentId, {
+            extractedText: text,
+            chunks: chunks,
+            status: 'ready '
+        });
+
+        console.log(`Document ${documentId} processed successfully with ${chunks.length} chunks.`);
+
+    } catch (error) {
+    console.error(`Error processing PDF:${documentId}`, error);
+        //Update document status to error
+        await Document.findByIdAndUpdate(documentId, { status: 'failed' });
+       
+    }
+};
+
+
 //@desc    Get single document with chunks
 //@route   GET /api/documents/:id
 //@access  Private  
 export const getDocument = async (req, res, next) => {
     try {
+        const documents = await Document.aggregate([
+            {
+                $match: { userId: new mongoose.Types.ObjectId(req.user._id) }
+            },
+            {
+                $lookup: {
+                    from: 'flashcards',
+                    localField: '_id',
+                    foreignField: 'documentId',
+                    as: 'flashcards'
+                }
+            },
+            {
+                $lookup: {
+                    from: 'quizzes',
+                    localField: '_id',
+                    foreignField: 'documentId',
+                    as: 'quizzes'
+                }
+            },
+            {
+                $addFields: {
+                    flashcardCount: { $size: '$flashcardSets' },
+                    quizCount: { $size: '$quizzes' }
+                }
+            },
+            {
+                $project: {
+                    extractedText: 0, // Exclude full extracted text from response
+                    chunks: 0 ,
+                    flashcardSets: 0,
+                    quizzes: 0
+                }
+            },
+            {
+                $sort: { uploadDate: -1 }
+            }
+
+        ]);
+
+        res.status(200).json({
+            success: true,
+            count: documents.length,
+            data: documents
+        });
+
     }catch (error) {
         next(error);
     }
