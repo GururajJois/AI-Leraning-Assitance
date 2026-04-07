@@ -10,7 +10,7 @@ export async function extractTextFromPDF(filePath) {
     try {
         const dataBuffer = await fs.readFile(filePath);
         //pdf-parse excepts a Uint8Array,  not a Buffer
-        const parser = await PDFParse(new Uint8Array(dataBuffer));
+        const parser = new PDFParse(new Uint8Array(dataBuffer) );
         const data = await parser.getText();
         
         return { text: data.text, numPages: data.numpages, info: data.info };

@@ -14,20 +14,20 @@ import mongoose from 'mongoose';
 //@access  Private
 export const uploadDocument = async (req, res, next) => {
     try {
+        const { tile } = req.body;
         if(!req.file) {
-            res.status(400).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Please upload a PDF file',
                 statusCode: 400
             });
         }
 
-        const { tile } = req.body;
 
         if(!title) {
             // Delete uploaded file if no title provided 
             await fs.unlink(req.file.path);
-            res.status(400).json({
+            return res.status(400).json({
                 success: false,
                 message: 'Title is required',
                 statusCode: 400
@@ -40,9 +40,9 @@ export const uploadDocument = async (req, res, next) => {
 
         //Create docuemtn record in database
         const document = await Document.create({
-            user: req.user._id,
+            userId: req.user._id,
             title,
-            fileName: req.file.originalName,
+            fileName: req.file.originalname,
             filePath: fileUrl,
             fileSize: req.file.size,
             status: 'processing'
@@ -68,16 +68,6 @@ export const uploadDocument = async (req, res, next) => {
     }
 };
 
-//@desc    Get all user documents
-//@route   GET /api/documents
-//@access  Private
-export const getDocuments = async (req, res, next) => {
-    try {
-    }catch (error) {
-        next(error);
-    }
-};
-
 // Helper function to process PDF
 const processPDF = async (documentId, filePath) => {
     try {
@@ -89,7 +79,7 @@ const processPDF = async (documentId, filePath) => {
         await Document.findByIdAndUpdate(documentId, {
             extractedText: text,
             chunks: chunks,
-            status: 'ready '
+            status: 'ready'
         });
 
         console.log(`Document ${documentId} processed successfully with ${chunks.length} chunks.`);
@@ -97,17 +87,17 @@ const processPDF = async (documentId, filePath) => {
     } catch (error) {
     console.error(`Error processing PDF:${documentId}`, error);
         //Update document status to error
-        await Document.findByIdAndUpdate(documentId, { status: 'failed' });
+        await Document.findByIdAndUpdate(documentId, { status: 'failed123' });
        
     }
-};
+}
 
+//@desc    Get all user documents
+//@route   GET /api/documents
+//@access  Private
+export const getDocuments = async (req, res, next) => {
 
-//@desc    Get single document with chunks
-//@route   GET /api/documents/:id
-//@access  Private  
-export const getDocument = async (req, res, next) => {
-    try {
+     try {
         const documents = await Document.aggregate([
             {
                 $match: { userId: new mongoose.Types.ObjectId(req.user._id) }
@@ -117,7 +107,7 @@ export const getDocument = async (req, res, next) => {
                     from: 'flashcards',
                     localField: '_id',
                     foreignField: 'documentId',
-                    as: 'flashcards'
+                    as: 'flashcardSets'
                 }
             },
             {
@@ -130,8 +120,8 @@ export const getDocument = async (req, res, next) => {
             },
             {
                 $addFields: {
-                    flashcardCount: { $size: '$flashcardSets' },
-                    quizCount: { $size: '$quizzes' }
+                    flashcardCount: { $size: '$flashcardSets'},
+                    quizCount: { $size: '$quizzes'}
                 }
             },
             {
@@ -159,22 +149,71 @@ export const getDocument = async (req, res, next) => {
     }
 };
 
+;
+
+
+//@desc    Get single document with chunks
+//@route   GET /api/documents/:id
+//@access  Private  
+export const getDocument = async (req, res, next) => {
+        try {
+            const document = await Document.findOne({ _id: req.params.id, userId: req.user._id });
+            if(!document) {
+                return res.status(404).json({
+                    success: false,
+                    message: 'Document not found',
+                    statusCode: 404
+                });
+            }
+
+            //Get counts of associated flashcard sets and quizzes
+            const flashcardCount = await Flashcard.countDocuments({ documentId: document._id, userId: req.user._id });
+            const quizCount = await Quiz.countDocuments({ documentId: document._id, userId: req.user._id });
+
+            //Update last accessed date
+            document.lastAccessed = new Date();
+            await document.save();
+
+            // Combine document data with counts
+            const documentData = document.toObject();
+            documentData.flashcardCount = flashcardCount;
+            documentData.quizCount = quizCount;
+
+            res.status(200).json({
+                success: true,
+                data: documentData
+            });
+        }catch (error) {
+            next(error);
+        }
+};
+
 //@desc    Delete document
 //@route   DELETE /api/documents/:id
 //@access  Private
 export const deleteDocument = async (req, res, next) => {
     try {
+        const document = await Document.findOne({ _id: req.params.id, userId: req.user._id });
+        if(!document) {
+            return res.status(404).json({
+                success: false,
+                message: 'Document not found',
+                statusCode: 404
+            });
+        }
+        //Delete file from filesystem
+        await fs.unlink(document.filePath).catch(() => {});
+        
+        //Delete document record
+        await document.deleteOne();
+
+        res.status(200).json({
+            success: true,
+            message: 'Document deleted successfully'
+        });
+
     }catch (error) {
         next(error);
     }
 };
 
-//@desc    Update document metadata
-//@route   PUT /api/documents/:id
-//@access  Private
-export const updateDocument = async (req, res, next) => {
-    try {
-    }catch (error) {
-        next(error);
-    }
-};
